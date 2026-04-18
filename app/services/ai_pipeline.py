@@ -292,7 +292,7 @@ def _upscale_image(image_url: str) -> str:
     return result["image"]["url"]
 
 
-def generate_tryon(user_image_path: str, cloth_image_path: str, garment_description: str = "") -> str:
+def generate_tryon(user_image_path: str, cloth_image_path: str, garment_description: str = "", seed: int = None) -> str:
     """
     V5 Pipeline — diagnosed failure fixes applied:
     1. Preprocess person (rembg F5F5F5 + edge feathering)
@@ -349,7 +349,7 @@ def generate_tryon(user_image_path: str, cloth_image_path: str, garment_descript
 
         # ── STEP 5: FASHN VTON core call ──
         logger.info("STEP 5: Running FASHN Try-On...")
-        seed = random.randint(0, 999999)
+        seed = seed if seed is not None else random.randint(0, 999999)
         tryon_url = None
 
         try:

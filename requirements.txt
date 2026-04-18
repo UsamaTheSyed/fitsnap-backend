@@ -6,3 +6,4 @@ httpx
 fal-client
 requests
 python-dotenv
+google-genai

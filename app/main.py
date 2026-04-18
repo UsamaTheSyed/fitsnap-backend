@@ -3,6 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from app.routes import tryon
 from app.routes import store_routes
+from app.routes import measurements
+from app.routes import stylist
 import os
 
 app = FastAPI(title="FitSnap AI Try-On Backend")
@@ -25,6 +27,8 @@ app.mount("/outputs", StaticFiles(directory=OUTPUT_DIR), name="outputs")
 
 app.include_router(tryon.router)
 app.include_router(store_routes.router)
+app.include_router(measurements.router)
+app.include_router(stylist.router)
 
 @app.get("/")
 def read_root():
