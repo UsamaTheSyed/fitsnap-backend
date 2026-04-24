@@ -557,7 +557,7 @@ async def tryon_and_rate(
         # Call the existing AI pipeline (fast mode for widget speed)
         logger.info("Widget: Calling generate_tryon...")
         output_filename = generate_tryon(
-            user_img_path, cloth_img_path, garment_description, fast_mode=True
+            user_img_path, cloth_img_path, garment_description
         )
         logger.info(f"Widget: Try-on complete → {output_filename}")
 
