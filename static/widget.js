@@ -85,18 +85,61 @@ var css=`
 var s=document.createElement('style');s.textContent=css;document.head.appendChild(s);
 }
 
+function isLogoOrIcon(img){
+var src=(img.src||'').toLowerCase();
+var alt=(img.alt||'').toLowerCase();
+var cls=(img.className||'').toLowerCase();
+var id=(img.id||'').toLowerCase();
+var skipWords=['logo','icon','favicon','brand','header-img','site-logo','custom-logo'];
+for(var i=0;i<skipWords.length;i++){if(src.indexOf(skipWords[i])!==-1||alt.indexOf(skipWords[i])!==-1||cls.indexOf(skipWords[i])!==-1||id.indexOf(skipWords[i])!==-1)return true;}
+var w=img.naturalWidth||img.width||0;var h=img.naturalHeight||img.height||0;
+if(w>0&&h>0&&w/h>3)return true;
+if(w<100&&h<100)return true;
+var parent=img.parentElement;
+while(parent){
+var tag=parent.tagName?parent.tagName.toLowerCase():'';
+if(tag==='header'||tag==='nav')return true;
+var pcls=(parent.className||'').toLowerCase();
+if(pcls.indexOf('header')!==-1||pcls.indexOf('nav')!==-1||pcls.indexOf('logo')!==-1)return true;
+parent=parent.parentElement;
+}
+return false;
+}
+
 function detectProductImage(){
+// WooCommerce specific selectors first
+var wooImg=document.querySelector('.woocommerce-product-gallery img, .wp-post-image, .product .woocommerce-main-image img, .product-image img');
+if(wooImg&&wooImg.src&&!isLogoOrIcon(wooImg)){
+var full=wooImg.getAttribute('data-large_image')||wooImg.getAttribute('data-src')||wooImg.src;
+return full;
+}
+// Shopify selectors
+var shopifyImg=document.querySelector('.product__media img, .product-featured-media img, [data-product-featured-image]');
+if(shopifyImg&&shopifyImg.src&&!isLogoOrIcon(shopifyImg))return shopifyImg.src;
+// og:image but verify it's not a logo
 var og=document.querySelector('meta[property="og:image"]');
-if(og&&og.content)return og.content;
-var imgs=document.querySelectorAll('main img, .product img, #product img, article img, [class*=product] img');
+if(og&&og.content){
+var ogUrl=og.content.toLowerCase();
+if(ogUrl.indexOf('logo')===-1&&ogUrl.indexOf('icon')===-1&&ogUrl.indexOf('favicon')===-1)return og.content;
+}
+// Product area images
+var selectors=['main img','.product img','#product img','article img','[class*=product] img','.entry-content img','.single-product img'];
 var best='',bestArea=0;
+selectors.forEach(function(sel){
+try{
+var imgs=document.querySelectorAll(sel);
 imgs.forEach(function(im){
+if(isLogoOrIcon(im))return;
 var a=(im.naturalWidth||im.width||0)*(im.naturalHeight||im.height||0);
-if(a>bestArea){bestArea=a;best=im.src;}
+if(a>bestArea){bestArea=a;best=im.getAttribute('data-large_image')||im.getAttribute('data-src')||im.src;}
+});
+}catch(e){}
 });
 if(best)return best;
+// Fallback: largest non-logo image on page
 var all=document.querySelectorAll('img');
 all.forEach(function(im){
+if(isLogoOrIcon(im))return;
 var a=(im.naturalWidth||im.width||0)*(im.naturalHeight||im.height||0);
 if(a>bestArea){bestArea=a;best=im.src;}
 });
@@ -298,7 +341,15 @@ fd.append('product_id',state.productId||'');
 fd.append('garment_description','');
 
 fetch(BASE_URL+'/widget/tryon-and-rate',{method:'POST',headers:{'X-API-Key':API_KEY},body:fd})
-.then(function(r){if(!r.ok)throw new Error('Request failed');return r.json();})
+.then(function(r){
+if(!r.ok){
+return r.text().then(function(txt){
+console.error('FitSnap API error ('+r.status+'):',txt);
+throw new Error('Server error: '+r.status);
+});
+}
+return r.json();
+})
 .then(function(data){
 state.resultImg=data.result_image_url;state.score=data.score;state.scoreLabel=data.score_label;
 state.colorNote=data.color_note;state.fitNote=data.fit_note;state.styleNote=data.style_note;
