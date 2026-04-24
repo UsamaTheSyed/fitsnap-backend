@@ -7,3 +7,5 @@ fal-client
 requests
 python-dotenv
 google-genai
+beautifulsoup4
+aiosqlite

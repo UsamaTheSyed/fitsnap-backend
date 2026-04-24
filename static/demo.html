@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FitSnap Virtual Try-On — Demo for Brands</title>
+<meta name="description" content="See how FitSnap's embeddable virtual try-on widget works on your fashion website. One line of code, instant try-on for your customers.">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:system-ui,-apple-system,sans-serif;background:#FAF8F5;color:#1a1a1a;line-height:1.6;}
+.demo-hero{background:linear-gradient(135deg,#3D1F0D 0%,#6B3A1F 50%,#C17F4A 100%);color:#fff;padding:80px 20px 60px;text-align:center;}
+.demo-hero h1{font-size:clamp(28px,5vw,48px);font-weight:800;margin-bottom:12px;letter-spacing:-0.5px;}
+.demo-hero p{font-size:clamp(16px,2.5vw,20px);opacity:.9;max-width:600px;margin:0 auto 32px;}
+.demo-badge{display:inline-block;background:rgba(255,255,255,.15);padding:8px 20px;border-radius:50px;font-size:14px;font-weight:600;backdrop-filter:blur(8px);}
+.demo-section{max-width:1100px;margin:0 auto;padding:60px 20px;}
+.demo-section h2{font-size:clamp(22px,3vw,32px);font-weight:700;color:#3D1F0D;margin-bottom:16px;text-align:center;}
+.demo-section>p{text-align:center;color:#666;max-width:600px;margin:0 auto 40px;font-size:16px;}
+/* Fake product page */
+.product-page{background:#fff;border-radius:20px;box-shadow:0 4px 30px rgba(0,0,0,.08);overflow:hidden;display:grid;grid-template-columns:1fr 1fr;max-width:900px;margin:0 auto 60px;}
+.product-image{background:linear-gradient(145deg,#F8F4F0,#EDE5DA);display:flex;align-items:center;justify-content:center;min-height:500px;padding:40px;position:relative;}
+.product-image::after{content:'Sample Product Image';position:absolute;font-size:18px;color:#C17F4A;font-weight:600;}
+.product-image img{width:100%;max-width:360px;height:auto;border-radius:12px;position:relative;z-index:1;}
+.product-details{padding:40px;display:flex;flex-direction:column;justify-content:center;}
+.product-details .brand-name{font-size:13px;text-transform:uppercase;letter-spacing:2px;color:#C17F4A;font-weight:600;margin-bottom:8px;}
+.product-details h3{font-size:24px;font-weight:700;color:#3D1F0D;margin-bottom:8px;}
+.product-details .price{font-size:22px;font-weight:700;color:#C17F4A;margin-bottom:20px;}
+.product-details .desc{color:#666;font-size:14px;line-height:1.7;margin-bottom:24px;}
+.product-details .size-label{font-size:13px;font-weight:600;margin-bottom:8px;color:#3D1F0D;}
+.sizes{display:flex;gap:8px;margin-bottom:24px;}
+.sizes span{width:40px;height:40px;border:1.5px solid #ddd;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;cursor:pointer;transition:all .2s;}
+.sizes span:hover,.sizes span.sel{border-color:#3D1F0D;background:#3D1F0D;color:#fff;}
+.add-cart{background:#3D1F0D;color:#fff;border:none;padding:14px 32px;border-radius:12px;font-size:16px;font-weight:600;cursor:pointer;width:100%;transition:background .2s;}
+.add-cart:hover{background:#4a2710;}
+.demo-label{text-align:center;padding:24px;background:linear-gradient(90deg,transparent,#C17F4A33,transparent);margin:40px 0;font-size:18px;font-weight:700;color:#3D1F0D;}
+.demo-label span{background:#C17F4A;color:#fff;padding:4px 12px;border-radius:6px;font-size:14px;margin-left:8px;}
+/* Features */
+.features{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:24px;margin-bottom:60px;}
+.feature-card{background:#fff;padding:32px;border-radius:16px;box-shadow:0 2px 16px rgba(0,0,0,.05);text-align:center;transition:transform .3s,box-shadow .3s;}
+.feature-card:hover{transform:translateY(-4px);box-shadow:0 8px 32px rgba(0,0,0,.1);}
+.feature-card .fc-icon{font-size:40px;margin-bottom:16px;}
+.feature-card h4{font-size:18px;font-weight:700;color:#3D1F0D;margin-bottom:8px;}
+.feature-card p{font-size:14px;color:#666;}
+/* Embed code */
+.embed-demo{background:#1a1a1a;border-radius:16px;padding:32px;margin:0 auto 60px;max-width:700px;position:relative;}
+.embed-demo code{color:#C17F4A;font-size:14px;font-family:'Courier New',monospace;word-break:break-all;line-height:1.8;}
+.embed-demo .label{color:#888;font-size:12px;margin-bottom:12px;display:block;}
+/* CTA */
+.cta-section{background:linear-gradient(135deg,#3D1F0D,#6B3A1F);padding:60px 20px;text-align:center;border-radius:20px;margin:0 20px 60px;max-width:1060px;margin-left:auto;margin-right:auto;}
+.cta-section h2{color:#fff;font-size:clamp(24px,4vw,36px);margin-bottom:12px;}
+.cta-section p{color:rgba(255,255,255,.8);font-size:16px;margin-bottom:28px;}
+.cta-form{display:flex;gap:12px;max-width:500px;margin:0 auto;flex-wrap:wrap;justify-content:center;}
+.cta-form input{flex:1;min-width:220px;padding:14px 20px;border-radius:12px;border:none;font-size:15px;outline:none;}
+.cta-form button{padding:14px 28px;border-radius:12px;border:none;background:#C17F4A;color:#fff;font-size:15px;font-weight:700;cursor:pointer;transition:background .2s;}
+.cta-form button:hover{background:#d49260;}
+footer{text-align:center;padding:40px 20px;color:#999;font-size:13px;}
+@media(max-width:768px){
+.product-page{grid-template-columns:1fr;}
+.product-image{min-height:300px;}
+}
+</style>
+</head>
+<body>
+
+<section class="demo-hero">
+<h1>FitSnap Virtual Try-On Widget</h1>
+<p>Let your customers try on outfits right on your website. One line of code. Instant results.</p>
+<div class="demo-badge">🚀 See the live demo below ↓</div>
+</section>
+
+<div class="demo-label">👇 This is what your customers will see <span>LIVE DEMO</span></div>
+
+<section class="demo-section">
+<div class="product-page">
+<div class="product-image">
+<div style="width:100%;height:100%;background:linear-gradient(145deg,#EDE5DA,#F8F4F0);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px;">
+<div style="font-size:80px;">👗</div>
+<div style="font-size:18px;font-weight:600;color:#3D1F0D;">Sample Product</div>
+</div>
+</div>
+<div class="product-details">
+<div class="brand-name">Your Brand</div>
+<h3>Embroidered Lawn Collection 2025</h3>
+<div class="price">Rs. 4,500</div>
+<p class="desc">Premium unstitched lawn suit with intricate embroidery on front panel, chiffon dupatta with embellished borders, and dyed trouser fabric. Perfect for summer occasions.</p>
+<div class="size-label">Size</div>
+<div class="sizes">
+<span>XS</span><span>S</span><span class="sel">M</span><span>L</span><span>XL</span>
+</div>
+<button class="add-cart">Add to Cart — Rs. 4,500</button>
+</div>
+</div>
+</section>
+
+<section class="demo-section">
+<h2>Why Add FitSnap to Your Store?</h2>
+<p>Reduce returns, increase conversions, and give your customers the confidence to buy.</p>
+<div class="features">
+<div class="feature-card">
+<div class="fc-icon">📈</div>
+<h4>3x More Conversions</h4>
+<p>Customers who try on virtually are 3x more likely to complete their purchase.</p>
+</div>
+<div class="feature-card">
+<div class="fc-icon">📦</div>
+<h4>40% Fewer Returns</h4>
+<p>When customers see how it looks on them, they make better purchase decisions.</p>
+</div>
+<div class="feature-card">
+<div class="fc-icon">⚡</div>
+<h4>One-Line Setup</h4>
+<p>Add our widget to your website with a single script tag. Works on Shopify, WordPress, and custom sites.</p>
+</div>
+<div class="feature-card">
+<div class="fc-icon">🤖</div>
+<h4>AI Style Rating</h4>
+<p>Our AI rates how well each outfit suits the customer and suggests better matches from your catalog.</p>
+</div>
+<div class="feature-card">
+<div class="fc-icon">🔒</div>
+<h4>Your Brand, Your Data</h4>
+<p>Customer data stays private. Recommendations come only from your own product catalog.</p>
+</div>
+<div class="feature-card">
+<div class="fc-icon">📱</div>
+<h4>Mobile Optimized</h4>
+<p>Beautiful full-screen experience on phones. Touch-friendly design for every customer.</p>
+</div>
+</div>
+</section>
+
+<section class="demo-section">
+<h2>Setup in 30 Seconds</h2>
+<p>Just paste this one line before your closing &lt;/body&gt; tag:</p>
+<div class="embed-demo">
+<span class="label">Your embed code:</span>
+<code>&lt;script src="https://your-fitsnap-url/static/widget.js" data-key="YOUR_API_KEY"&gt;&lt;/script&gt;</code>
+</div>
+</section>
+
+<section class="cta-section">
+<h2>Get This On Your Website</h2>
+<p>Start offering virtual try-on to your customers today.</p>
+<form class="cta-form" onsubmit="event.preventDefault();this.querySelector('button').textContent='✓ We\'ll be in touch!';this.querySelector('button').style.background='#2D6A4F';">
+<input type="email" placeholder="Enter your email" required>
+<button type="submit">Get Started →</button>
+</form>
+</section>
+
+<footer>
+<p>FitSnap — AI-Powered Virtual Try-On Technology</p>
+</footer>
+
+<!-- Widget embedded in demo mode -->
+<script src="widget.js" data-key="DEMO_KEY"></script>
+
+</body>
+</html>
