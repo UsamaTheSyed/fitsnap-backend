@@ -521,30 +521,48 @@ async def tryon_and_rate(
     try:
         # ── STEP 2: Run try-on pipeline ──
         logger.info("Widget: Starting try-on pipeline...")
+        logger.info(f"Widget: product_image_url = {product_image_url}")
 
         # Save user image
         user_img_path = save_uploaded_file(user_image, prefix="widget_user_")
+        logger.info(f"Widget: User image saved to {user_img_path}")
 
-        # Download product image to temp file
-        dl = req_lib.get(product_image_url, timeout=30)
-        dl.raise_for_status()
-        cloth_tmp = tempfile.NamedTemporaryFile(suffix=".jpg", delete=False, dir="uploads")
+        # Download product image to temp file — use headers to avoid being blocked
+        try:
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "Accept": "image/webp,image/apng,image/*,*/*;q=0.8",
+            }
+            dl = req_lib.get(product_image_url, timeout=30, headers=headers, verify=False, allow_redirects=True)
+            dl.raise_for_status()
+            logger.info(f"Widget: Product image downloaded, size={len(dl.content)} bytes")
+        except Exception as dl_err:
+            logger.error(f"Widget: Failed to download product image: {dl_err}")
+            raise Exception(f"Cannot download product image from {product_image_url}: {dl_err}")
+
+        # Determine file extension from content type
+        content_type = dl.headers.get("content-type", "image/jpeg")
+        ext = ".jpg"
+        if "png" in content_type:
+            ext = ".png"
+        elif "webp" in content_type:
+            ext = ".webp"
+
+        cloth_tmp = tempfile.NamedTemporaryFile(suffix=ext, delete=False, dir="uploads")
         cloth_tmp.write(dl.content)
         cloth_img_path = cloth_tmp.name
         cloth_tmp.close()
+        logger.info(f"Widget: Product image saved to {cloth_img_path}")
 
         # Call the existing AI pipeline (fast mode for widget speed)
+        logger.info("Widget: Calling generate_tryon...")
         output_filename = generate_tryon(
             user_img_path, cloth_img_path, garment_description, fast_mode=True
         )
+        logger.info(f"Widget: Try-on complete → {output_filename}")
 
         # Build result URL
         result_image_url = get_output_url(output_filename, request)
-
-        # Clean up temp files
-        for p in [user_img_path, cloth_img_path]:
-            if os.path.exists(p):
-                os.remove(p)
 
         # ── STEP 3: Rate the result ──
         logger.info("Widget: Rating try-on result...")
@@ -558,13 +576,8 @@ async def tryon_and_rate(
 
         if recommendation_needed:
             logger.info("Widget: Score < 85, finding recommendations...")
-            # Upload user image to get person description
-            try:
-                user_upload_url = fal_client.upload_file(user_img_path) if os.path.exists(user_img_path) else result_image_url
-            except Exception:
-                user_upload_url = result_image_url
-
-            person_desc = _describe_person(user_upload_url)
+            # Use result image for person description since user image may be cleaned up
+            person_desc = _describe_person(result_image_url)
 
             # Get original product's category
             original_category = "one-pieces"
@@ -580,6 +593,14 @@ async def tryon_and_rate(
             recommended_products = _find_recommendations(
                 x_api_key, person_desc, product_id, original_category
             )
+
+        # Clean up temp files AFTER all processing is done
+        for p in [user_img_path, cloth_img_path]:
+            try:
+                if os.path.exists(p):
+                    os.remove(p)
+            except Exception:
+                pass
 
         # ── STEP 5: Return response ──
         return {
@@ -597,7 +618,7 @@ async def tryon_and_rate(
         logger.error(f"Widget try-on failed: {e}")
         import traceback
         traceback.print_exc()
-        raise HTTPException(status_code=500, detail="Try-on processing failed. Please try again.")
+        raise HTTPException(status_code=500, detail=f"Try-on failed: {str(e)}")
 
 
 # ═════════════════════════════════════════════════════════════════════════════
