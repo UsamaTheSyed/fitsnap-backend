@@ -107,11 +107,20 @@ return false;
 }
 
 function detectProductImage(){
-// WooCommerce specific selectors first
-var wooImg=document.querySelector('.woocommerce-product-gallery img, .wp-post-image, .product .woocommerce-main-image img, .product-image img');
+// WooCommerce specific selectors — most reliable first
+var wooSelectors=[
+'.woocommerce-product-gallery__image img',
+'.woocommerce-product-gallery__wrapper img',
+'.flex-active-slide img',
+'.woocommerce-product-gallery img',
+'.product-image img.attachment-woocommerce_thumbnail'
+];
+for(var i=0;i<wooSelectors.length;i++){
+var wooImg=document.querySelector(wooSelectors[i]);
 if(wooImg&&wooImg.src&&!isLogoOrIcon(wooImg)){
 var full=wooImg.getAttribute('data-large_image')||wooImg.getAttribute('data-src')||wooImg.src;
-return full;
+if(full)return full;
+}
 }
 // Shopify selectors
 var shopifyImg=document.querySelector('.product__media img, .product-featured-media img, [data-product-featured-image]');
