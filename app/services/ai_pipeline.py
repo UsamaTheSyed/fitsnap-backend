@@ -5,6 +5,7 @@ import logging
 import requests
 import tempfile
 import fal_client
+from concurrent.futures import ThreadPoolExecutor
 from PIL import Image, ImageOps, ImageFilter, ImageStat, ImageEnhance
 from dotenv import load_dotenv
 
@@ -292,7 +293,7 @@ def _upscale_image(image_url: str) -> str:
     return result["image"]["url"]
 
 
-def generate_tryon(user_image_path: str, cloth_image_path: str, garment_description: str = "", seed: int = None) -> str:
+def generate_tryon(user_image_path: str, cloth_image_path: str, garment_description: str = "", seed: int = None, fast_mode: bool = False) -> str:
     """
     V5 Pipeline — diagnosed failure fixes applied:
     1. Preprocess person (rembg F5F5F5 + edge feathering)
@@ -300,30 +301,32 @@ def generate_tryon(user_image_path: str, cloth_image_path: str, garment_descript
     3. Florence-2 category + photo type detection
     4. Auto garment description if user skipped
     5. FASHN VTON (restore_background: true) with CatVTON fallback
-    6. Brightness/contrast correction
-    7. Aura-SR upscale
+    6. Brightness/contrast correction (skipped in fast_mode)
+    7. Aura-SR upscale (skipped in fast_mode)
     8. Final contain-and-pad
     """
     logger.info("=" * 60)
-    logger.info("V5 PIPELINE START")
+    logger.info(f"V5 PIPELINE START (Fast Mode: {fast_mode})")
     logger.info("=" * 60)
 
     try:
-        # ── STEP 1: Person image preprocessing ──
-        logger.info("STEP 1: Preparing person image...")
-        human_image_url = _prepare_image(user_image_path, is_garment=False)
+        logger.info("STEP 1, 2, 3: Running person and garment prep concurrently...")
+        
+        def process_garment():
+            logger.info("STEP 2A: Uploading raw garment for detection...")
+            raw_url = fal_client.upload_file(cloth_image_path)
+            logger.info("STEP 2B: Cleaning garment image...")
+            clean_url = _prepare_image(cloth_image_path, is_garment=True)
+            logger.info("STEP 3: Detecting outfit type...")
+            cat, long_t, photo_type = _analyze_garment(raw_url)
+            return raw_url, clean_url, cat, long_t, photo_type
 
-        # ── STEP 2A: Upload RAW garment for Florence-2 BEFORE rembg ──
-        logger.info("STEP 2A: Uploading raw garment for detection...")
-        raw_garment_url = fal_client.upload_file(cloth_image_path)
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            future_human = executor.submit(_prepare_image, user_image_path, False)
+            future_garment = executor.submit(process_garment)
 
-        # ── STEP 2B: Garment image preprocessing (rembg for try-on model) ──
-        logger.info("STEP 2B: Cleaning garment image...")
-        garment_image_url = _prepare_image(cloth_image_path, is_garment=True)
-
-        # ── STEP 3: Detect using RAW garment (original colors intact) ──
-        logger.info("STEP 3: Detecting outfit type...")
-        category, long_top, garment_photo_type = _analyze_garment(raw_garment_url)
+            human_image_url = future_human.result()
+            raw_garment_url, garment_image_url, category, long_top, garment_photo_type = future_garment.result()
 
         # Keyword override for long_top
         desc_lower = garment_description.lower() if garment_description else ""
@@ -391,7 +394,31 @@ def generate_tryon(user_image_path: str, cloth_image_path: str, garment_descript
             tryon_url = fallback["image"]["url"]
             logger.info("CatVTON fallback successful.")
 
-        # ── STEP 6: Brightness/contrast correction ──
+        # ── FAST MODE BRANCH ──
+        if fast_mode:
+            logger.info("FAST MODE enabled: Skipping Aura-SR upscale and brightness corrections.")
+            logger.info("STEP 8: Final safety padding...")
+            dl_final = requests.get(tryon_url)
+            final_raw = tempfile.NamedTemporaryFile(suffix=".jpg", delete=False).name
+            with open(final_raw, "wb") as f:
+                f.write(dl_final.content)
+
+            final_padded = _resize_and_pad(final_raw, target_w=1536, target_h=2048)
+            os.remove(final_raw)
+
+            output_filename = f"out_{uuid.uuid4().hex}.jpg"
+            output_path = os.path.join("outputs", output_filename)
+
+            # Convert to JPEG for smaller file size
+            final_img = Image.open(final_padded).convert("RGB")
+            final_img.save(output_path, format="JPEG", quality=95)
+            os.remove(final_padded)
+
+            logger.info(f"V5 PIPELINE COMPLETE (FAST) → {output_filename}")
+            logger.info("=" * 60)
+            return output_filename
+
+        # ── STEP 6: Brightness/contrast correction (Standard Mode) ──
         logger.info("STEP 6: Adjusting lighting...")
         dl_res = requests.get(tryon_url)
         raw_path = tempfile.NamedTemporaryFile(suffix=".jpg", delete=False).name
@@ -440,3 +467,48 @@ def generate_tryon(user_image_path: str, cloth_image_path: str, garment_descript
         import shutil
         shutil.copyfile(user_image_path, output_path)
         return output_filename
+
+def enhance_tryon_result(image_url: str) -> str:
+    """Standalone upscaling and brightness enhancement pipeline for Progressive UI."""
+    try:
+        logger.info(f"Enhancing try-on result: {image_url}")
+        
+        # 1. Download
+        dl_res = requests.get(image_url)
+        raw_path = tempfile.NamedTemporaryFile(suffix=".jpg", delete=False).name
+        with open(raw_path, "wb") as f:
+            f.write(dl_res.content)
+
+        # 2. Brightness/contrast correction
+        corrected_path = _correct_brightness_contrast(raw_path)
+        os.remove(raw_path)
+
+        # 3. Upload for fal limit
+        corrected_url = fal_client.upload_file(corrected_path)
+        os.remove(corrected_path)
+
+        # 4. Upscale (Aura-SR)
+        upscaled_url = _upscale_image(corrected_url)
+        
+        # 5. Download and pad
+        dl_final = requests.get(upscaled_url)
+        final_raw = tempfile.NamedTemporaryFile(suffix=".jpg", delete=False).name
+        with open(final_raw, "wb") as f:
+            f.write(dl_final.content)
+
+        final_padded = _resize_and_pad(final_raw, target_w=1536, target_h=2048)
+        os.remove(final_raw)
+
+        output_filename = f"out_hd_{uuid.uuid4().hex}.jpg"
+        output_path = os.path.join("outputs", output_filename)
+
+        final_img = Image.open(final_padded).convert("RGB")
+        final_img.save(output_path, format="JPEG", quality=95)
+        os.remove(final_padded)
+
+        logger.info(f"ENHANCE COMPLETE → {output_filename}")
+        return output_filename
+
+    except Exception as e:
+        logger.error(f"Enhancement failed: {e}")
+        raise e

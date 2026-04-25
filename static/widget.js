@@ -217,13 +217,13 @@ grid.appendChild(gw);body.appendChild(grid);
 }
 }
 
-var loadingMessages=['Preparing your photo...','Detecting outfit type...','Fitting the outfit on you...','Rating your look...'];
+var loadingMessages=['Preparing your photo...','Downloading outfit image...','Running AI virtual try-on...','Still processing — this takes about a minute...','Almost there — rating your look...','Finalizing your style score...'];
 var msgIndex=0;
 
 function renderProcessing(body){
 body.innerHTML='';
 var ld=document.createElement('div');ld.className='fitsnap-loading';
-ld.innerHTML='<div class="fitsnap-spinner"></div><div class="fitsnap-loading-msg" id="fs-load-msg">'+loadingMessages[0]+'</div><div class="fitsnap-loading-sub">Usually takes 30-40 seconds</div>';
+ld.innerHTML='<div class="fitsnap-spinner"></div><div class="fitsnap-loading-msg" id="fs-load-msg">'+loadingMessages[0]+'</div><div class="fitsnap-loading-sub">This usually takes about 60-90 seconds</div>';
 body.appendChild(ld);
 msgIndex=0;
 var iv=setInterval(function(){
@@ -231,7 +231,7 @@ msgIndex++;if(msgIndex>=loadingMessages.length)msgIndex=loadingMessages.length-1
 var el=document.getElementById('fs-load-msg');
 if(el)el.textContent=loadingMessages[msgIndex];
 if(state.step!==2)clearInterval(iv);
-},6000);
+},10000);
 }
 
 function renderResult(body){

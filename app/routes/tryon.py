@@ -1,5 +1,5 @@
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Request
-from app.services.ai_pipeline import generate_tryon
+from app.services.ai_pipeline import generate_tryon, enhance_tryon_result
 from app.utils.storage import save_uploaded_file, get_output_url
 import os
 import random
@@ -24,8 +24,8 @@ async def try_on_endpoint(
         user_img_path = save_uploaded_file(user_image, prefix="user_")
         cloth_img_path = save_uploaded_file(cloth_image, prefix="cloth_")
         
-        # Call AI Pipeline with garment description
-        output_filename = generate_tryon(user_img_path, cloth_img_path, garment_description)
+        # Call AI Pipeline with garment description in Fast Mode
+        output_filename = generate_tryon(user_img_path, cloth_img_path, garment_description, fast_mode=True)
         
         # Clean up input images to free up space
         if os.path.exists(user_img_path):
@@ -65,7 +65,7 @@ async def try_on_multi_endpoint(
         image_urls = []
         for seed in seeds:
             output_filename = generate_tryon(
-                user_img_path, cloth_img_path, garment_description, seed=seed
+                user_img_path, cloth_img_path, garment_description, seed=seed, fast_mode=True
             )
             image_url = get_output_url(output_filename, request)
             image_urls.append(image_url)
@@ -77,6 +77,22 @@ async def try_on_multi_endpoint(
             os.remove(cloth_img_path)
             
         return {"success": True, "image_urls": image_urls}
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/tryon/enhance/")
+async def try_on_enhance_endpoint(
+    request: Request,
+    image_url: str = Form(...),
+):
+    """Progressively enhance an existing tryon result with Upscaling."""
+    try:
+        # Run enhancement pipeline
+        output_filename = enhance_tryon_result(image_url)
+        hd_image_url = get_output_url(output_filename, request)
+        return {"success": True, "image_url": hd_image_url}
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
